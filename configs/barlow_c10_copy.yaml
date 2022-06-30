@@ -10,6 +10,7 @@ model:
   cl_model: finetune
   proj_layers: 2
   buffer_size: 256
+  fm_balanced: True
 
 train:
   optimizer: 
@@ -26,7 +27,13 @@ train:
   knn_monitor: True # knn monitor will take more time
   knn_interval: 1
   knn_k: 200
-  alpha: 0.4
+  alpha: 0.1
+  fm_weight: 0.1
+  fm_cos_dist: False
+  fm_knn_k: 10
+  fm_dim: 20
+  fm_knn_dynamic: False
+  fm_dim_gap: False
 eval: # linear evaluation, False will turn off automatic evaluation after training
   optimizer: 
     name: sgd

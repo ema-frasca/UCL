@@ -1,7 +1,7 @@
 import os
 import torch
 import torch.nn as nn
-import torch.nn.functional as F 
+import torch.nn.functional as F
 import torchvision
 import numpy as np
 from tqdm import tqdm
@@ -17,6 +17,7 @@ from utils.loggers import CsvLogger
 from datasets.utils.continual_dataset import ContinualDataset
 from models.utils.continual_model import ContinualModel
 from typing import Tuple
+from utils.wandbsc import WandbLogger
 
 
 def evaluate(model: ContinualModel, dataset: ContinualDataset, device, classifier=None) -> Tuple[list, list]:
@@ -47,7 +48,7 @@ def evaluate(model: ContinualModel, dataset: ContinualDataset, device, classifie
                 mask_classes(outputs, dataset, k)
                 _, pred = torch.max(outputs.data, 1)
                 correct_mask_classes += torch.sum(pred == labels).item()
-        
+
         accs.append(correct / total * 100)
         accs_mask_classes.append(correct_mask_classes / total * 100)
 
@@ -56,7 +57,6 @@ def evaluate(model: ContinualModel, dataset: ContinualDataset, device, classifie
 
 
 def main(device, args):
-
     dataset = get_dataset(args)
     dataset_copy = get_dataset(args)
     train_loader, memory_loader, test_loader = dataset_copy.get_data_loaders(args)
@@ -64,60 +64,86 @@ def main(device, args):
     # define model
     model = get_model(args, device, len(train_loader), dataset.get_transform(args))
 
-    logger = Logger(matplotlib=args.logger.matplotlib, log_dir=args.log_dir)
-    accuracy = 0 
+    # logger = Logger(matplotlib=args.logger.matplotlib, log_dir=args.log_dir)
+    bb_name = 'bt' if args.model.name == 'barlowtwins' else 'ss' if args.model.name == 'simsiam' else ''
+    name = model.name if hasattr(model, 'name') else model.NAME
+    name += '_' + bb_name
+    wblog = WandbLogger(model.args, name=name)
+    accuracy = 0
 
     for t in range(dataset.N_TASKS):
-      train_loader, memory_loader, test_loader = dataset.get_data_loaders(args)
-      global_progress = tqdm(range(0, args.train.stop_at_epoch), desc=f'Training')
-      for epoch in global_progress:
-        model.train()
-        results, results_mask_classes = [], []
-        
-        local_progress=tqdm(train_loader, desc=f'Epoch {epoch}/{args.train.num_epochs}', disable=args.hide_progress)
-        for idx, ((images1, images2, notaug_images), labels) in enumerate(local_progress):
-            data_dict = model.observe(images1, labels, images2, notaug_images)
-            logger.update_scalers(data_dict)
+        train_loader, memory_loader, test_loader = dataset.get_data_loaders(args)
+        if hasattr(model, 'begin_task'):
+            model.begin_task(train_loader)
+        global_progress = tqdm(range(0, args.train.stop_at_epoch), desc=f'Training Task {t + 1}/{dataset.N_TASKS}')
+        for epoch in global_progress:
+            model.train()
+            results, results_mask_classes = [], []
 
-        global_progress.set_postfix(data_dict)
+            local_progress = tqdm(train_loader, desc=f'Epoch {epoch}/{args.train.num_epochs}',
+                                  disable=args.hide_progress)
+            for idx, ((images1, images2, notaug_images), labels) in enumerate(local_progress):
+                data_dict = model.observe(images1, labels, images2, notaug_images)
+                wblog({'train': {**data_dict, 'epoch': epoch, 'task': t}})
+                # logger.update_scalers(data_dict)
 
-        if args.train.knn_monitor and epoch % args.train.knn_interval == 0: 
-            for i in range(len(dataset.test_loaders)):
-              acc, acc_mask = knn_monitor(model.net.module.backbone, dataset, dataset.memory_loaders[i], dataset.test_loaders[i], device, args.cl_default, task_id=t, k=min(args.train.knn_k, len(memory_loader.dataset))) 
-              results.append(acc)
-            mean_acc = np.mean(results)
-          
-        epoch_dict = {"epoch":epoch, "accuracy": mean_acc}
-        global_progress.set_postfix(epoch_dict)
-        logger.update_scalers(epoch_dict)
-     
-      if args.cl_default:
-        accs = evaluate(model.net.module.backbone, dataset, device)
-        results.append(accs[0])
-        results_mask_classes.append(accs[1])
-        mean_acc = np.mean(accs, axis=1)
-        print_mean_accuracy(mean_acc, t + 1, dataset.SETTING)
- 
-      model_path = os.path.join(args.ckpt_dir, f"{args.model.cl_model}_{args.name}_{t}.pth")
-      torch.save({
-        'epoch': epoch+1,
-        'state_dict':model.net.state_dict()
-      }, model_path)
-      print(f"Task Model saved to {model_path}")
-      with open(os.path.join(args.log_dir, f"checkpoint_path.txt"), 'w+') as f:
-        f.write(f'{model_path}')
-      
-      if hasattr(model, 'end_task'):
-        model.end_task(dataset)
+            global_progress.set_postfix(data_dict)
+
+            if args.train.knn_monitor and epoch % args.train.knn_interval == 0:
+                for i in range(len(dataset.test_loaders)):
+                    acc, acc_mask = knn_monitor(model.net.module.backbone, dataset, dataset.memory_loaders[i],
+                                                dataset.test_loaders[i], device, args.cl_default, task_id=t,
+                                                k=min(args.train.knn_k, len(memory_loader.dataset)))
+                    results.append(acc)
+                mean_acc = np.mean(results)
+                wblog({'eval': {'acc-mean': mean_acc, 'epoch': epoch, 'task': t, 'te': t*args.train.stop_at_epoch+epoch,
+                                **{f'acc-{i}': acc for i, acc in enumerate(results)}}})
+
+            epoch_dict = {"epoch": epoch, "accuracy": mean_acc}
+            global_progress.set_postfix(epoch_dict)
+            # logger.update_scalers(epoch_dict)
+
+        if args.cl_default:
+            accs = evaluate(model.net.module.backbone, dataset, device)
+            results.append(accs[0])
+            results_mask_classes.append(accs[1])
+            mean_acc = np.mean(accs, axis=1)
+            print_mean_accuracy(mean_acc, t + 1, dataset.SETTING)
+
+        if hasattr(model, 'end_task'):
+            model.end_task(train_loader)
+
+        for i in range(len(dataset.test_loaders)):
+            acc, acc_mask = knn_monitor(model.net.module.backbone, dataset, dataset.memory_loaders[i],
+                                        dataset.test_loaders[i], device, args.cl_default, task_id=t,
+                                        k=min(args.train.knn_k, len(memory_loader.dataset)))
+            results.append(acc)
+        mean_acc = np.mean(results)
+        wblog({'test': {'acc-mean': mean_acc, 'task': t,
+                        **{f'acc-{i}': acc for i, acc in enumerate(results)}}})
+
+        model_path = os.path.join(args.ckpt_dir, f"{args.model.cl_model}_{t}.pth")
+        if args.save_checks:
+            torch.save(model.net.module.backbone.state_dict(), model_path)
+            print(f"Backbone saved to {model_path}")
+        # torch.save({
+        #   'epoch': epoch+1,
+        #   'state_dict':model.net.state_dict()
+        # }, model_path)
+        # print(f"Task Model saved to {model_path}")
+        # with open(os.path.join(args.log_dir, f"checkpoint_path.txt"), 'w+') as f:
+        #   f.write(f'{model_path}')
+
 
     if args.eval is not False and args.cl_default is False:
         args.eval_from = model_path
 
+
 if __name__ == "__main__":
     args = get_args()
+    # if args.cl_model is not None:
+    #     args.model.cl_model = args.cl_model
     main(device=args.device, args=args)
-    completed_log_dir = args.log_dir.replace('in-progress', 'debug' if args.debug else 'completed')
-    os.rename(args.log_dir, completed_log_dir)
-    print(f'Log file has been saved to {completed_log_dir}')
-
-
+    # completed_log_dir = args.log_dir.replace('in-progress', 'debug' if args.debug else 'completed')
+    # os.rename(args.log_dir, completed_log_dir)
+    # print(f'Log file has been saved to {completed_log_dir}')

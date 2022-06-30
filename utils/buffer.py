@@ -119,6 +119,15 @@ class Buffer:
         else:
             return False
 
+    def is_full(self) -> bool:
+        """
+        Returns true if the buffer is full, false otherwise.
+        """
+        if self.num_seen_examples >= self.buffer_size:
+            return True
+        else:
+            return False
+
     def get_all_data(self, transform: transforms=None) -> Tuple:
         """
         Return all the items in the memory buffer.

@@ -4,7 +4,7 @@
 # This source code is licensed under the license found in the
 # LICENSE file in the gem_license file in the root of this source tree.
 
-import quadprog
+# import quadprog
 
 import numpy as np
 import torch
@@ -68,9 +68,9 @@ def project2cone2(gradient, memories, margin=0.5, eps=1e-3):
     grad_prod = np.dot(memories_np, gradient_np) * -1
     G = np.eye(n_rows)
     h = np.zeros(n_rows) + margin
-    v = quadprog.solve_qp(self_prod, grad_prod, G, h)[0]
-    x = np.dot(v, memories_np) + gradient_np
-    gradient.copy_(torch.from_numpy(x).view(-1, 1))
+    # v = quadprog.solve_qp(self_prod, grad_prod, G, h)[0]
+    # x = np.dot(v, memories_np) + gradient_np
+    # gradient.copy_(torch.from_numpy(x).view(-1, 1))
 
 
 class Gem(ContinualModel):

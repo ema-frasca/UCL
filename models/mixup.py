@@ -53,7 +53,7 @@ class Mixup(ContinualModel):
             
         loss.backward()
         self.opt.step()
-        data_dict.update({'lr': self.args.train.base_lr})
+        data_dict.update({'lr': self.lr_scheduler.optimizer.param_groups[0]['lr']})
         if self.args.cl_default:
             self.buffer.add_data(examples=notaug_inputs, logits=labels)
         else:
