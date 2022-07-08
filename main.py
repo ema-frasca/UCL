@@ -11,6 +11,7 @@ from models import get_model
 from tools import AverageMeter, knn_monitor, Logger, file_exist_check
 from datasets import get_dataset
 from datetime import datetime
+from utils import create_if_not_exists
 from utils.loggers import *
 from utils.metrics import mask_classes
 from utils.loggers import CsvLogger
@@ -122,7 +123,9 @@ def main(device, args):
         wblog({'test': {'acc-mean': mean_acc, 'task': t,
                         **{f'acc-{i}': acc for i, acc in enumerate(results)}}})
 
-        model_path = os.path.join(args.ckpt_dir, f"{args.model.cl_model}_{t}.pth")
+        chech_dir = os.path.join(args.ckpt_dir, args.dataset.name)
+        create_if_not_exists(chech_dir)
+        model_path = os.path.join(chech_dir, f"{args.model.cl_model}_{t}.pth")
         if args.save_checks:
             torch.save(model.net.module.backbone.state_dict(), model_path)
             print(f"Backbone saved to {model_path}")

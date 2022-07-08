@@ -32,11 +32,11 @@ class FMap(ContinualModel):
         ev2, evals2 = self.get_evects(features2)
 
         # egap = self.args.train.fm_dim
-        eval_diff = evals1[1:] - evals1[:-1]
-        egap = torch.argmax(eval_diff).item()
+        eval_diff = evals1[2:] - evals1[1:-1]
+        egap = torch.argmax(eval_diff).item() + 1
         if self.args.train.fm_dim_gap:
-            ev1 = ev1[:, :egap + 1]
-            ev2 = ev2[:, :egap + 1]
+            ev1 = ev1[:, :egap]
+            ev2 = ev2[:, :egap]
 
         c = ev2.T @ ev1
         target = torch.eye(c.shape[0]).to(c.device)
@@ -61,10 +61,10 @@ class FMap(ContinualModel):
         if not self.buffer.is_empty():
             buf_inputs, buf_labels, buf_features1 = self.buffer.get_data(
                 self.args.train.batch_size, transform=self.transform)
-            buf_features2 = self.net.module.backbone(buf_inputs, return_features=True)
-            data_dict['penalty'], egap = self.fmap_loss(buf_features1, buf_features2) * self.args.train.fm_weight
+            buf_features2 = self.net.module.backbone(buf_inputs, return_features=not self.args.train.fm_logits)
+            data_dict['penalty'], egap = self.fmap_loss(buf_features1, buf_features2)
             data_dict['egap'] = egap
-            loss += data_dict['penalty']
+            loss += data_dict['penalty'] * self.args.train.fm_weight
 
         loss.backward()
         self.opt.step()

@@ -34,6 +34,7 @@ train:
   fm_dim: 20
   fm_knn_dynamic: False
   fm_dim_gap: False
+  fm_logits: True
 eval: # linear evaluation, False will turn off automatic evaluation after training
   optimizer: 
     name: sgd

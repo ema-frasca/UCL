@@ -6,6 +6,7 @@
 from datasets.seq_mnist import SequentialMNIST
 from datasets.seq_fmnist import SequentialFMNIST
 from datasets.seq_cifar10 import SequentialCIFAR10
+from datasets.seq_cifar10_inv import SequentialCIFAR10Inv
 from datasets.seq_cifar100 import SequentialCIFAR100
 from datasets.seq_tinyimagenet import SequentialTinyImagenet
 from datasets.seq_svhn import SequentialSVHN
@@ -18,6 +19,7 @@ NAMES = {
     SequentialFMNIST.NAME: SequentialFMNIST,
     SequentialSVHN.NAME: SequentialSVHN,
     SequentialCIFAR10.NAME: SequentialCIFAR10,
+    SequentialCIFAR10Inv.NAME: SequentialCIFAR10Inv,
     SequentialCIFAR100.NAME: SequentialCIFAR100,
     SequentialTinyImagenet.NAME: SequentialTinyImagenet,
 }
