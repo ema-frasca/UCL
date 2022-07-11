@@ -9,6 +9,7 @@ from arguments import get_args
 from augmentations import get_aug
 from models import get_model
 from tools import AverageMeter, knn_monitor, Logger, file_exist_check
+from tools.knn_monitor import kmeans_monitor
 from datasets import get_dataset
 from datetime import datetime
 from utils import create_if_not_exists, random_id
@@ -120,8 +121,12 @@ def main(device, args):
                                         k=min(args.train.knn_k, len(memory_loader.dataset)))
             results.append(acc)
         mean_acc = np.mean(results)
+
+        kmm, kmm_s, _ = kmeans_monitor(model.net.module.backbone, dataset.test_loaders, args.cl_default, (t+1) * dataset.N_CLASSES_PER_TASK)
+
         wblog({'test': {'acc-mean': mean_acc, 'task': t,
-                        **{f'acc-{i}': acc for i, acc in enumerate(results)}}})
+                        **{f'acc-{i}': acc for i, acc in enumerate(results)},
+                        'kmm-mean': kmm, 'kmm-std': kmm_s}})
 
         if args.save_checks:
             chech_dir = os.path.join(args.ckpt_dir, args.dataset.name, f'{name}-{wblog.run_id}')
