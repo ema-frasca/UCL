@@ -25,6 +25,17 @@ def calc_dist_weiss(nu: torch.Tensor, logvar: torch.Tensor):
     wdiff = (var.unsqueeze(0) + var.unsqueeze(1) -2*(torch.sqrt(var.unsqueeze(0)*var.unsqueeze(1)))).sum(-1)
     return edist + wdiff
 
+def calc_ADL_heat(dist_matrix: torch.Tensor, sigma=1.):
+    # compute affinity matrix, heat_kernel
+    A = torch.exp(-dist_matrix / (dist_matrix.mean().detach()))
+    # compute degree matrix
+    d_values = A.sum(1)
+    assert not (d_values == 0).any(), f'D contains zeros in diag: \n{d_values}'  # \n{A.tolist()}\n{distances.tolist()}'
+    D = torch.diag(d_values)
+    # compute laplacian
+    L = D - A
+    return A, D, L
+
 def calc_ADL_knn(distances: torch.Tensor, k: int, symmetric: bool = True):
     new_A = torch.clone(distances)
     new_A[torch.eye(len(new_A)).bool()] = +torch.inf

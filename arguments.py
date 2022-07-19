@@ -14,6 +14,7 @@ import warnings
 
 from datetime import datetime
 from ast import literal_eval
+from utils.conf import base_path, base_path_dataset
 
 
 class Namespace(object):
@@ -64,10 +65,10 @@ def get_args():
     parser.add_argument('--debug', action='store_true')
     parser.add_argument('--debug_subset_size', type=int, default=8)
     parser.add_argument('--download', action='store_true', help="if can't find dataset, download from web")
-    parser.add_argument('--data_dir', type=str, default='/nas/softechict-nas-2/efrascaroli/datasets')
-    parser.add_argument('--log_dir', type=str, default='/nas/softechict-nas-2/efrascaroli/ucl/logs')
-    parser.add_argument('--ckpt_dir', type=str, default='/nas/softechict-nas-2/efrascaroli/ucl/checkpoints')
-    parser.add_argument('--ckpt_dir_1', type=str, default='/nas/softechict-nas-2/efrascaroli/ucl/checkpoints')
+    parser.add_argument('--data_dir', type=str, default=base_path_dataset())
+    parser.add_argument('--log_dir', type=str, default=base_path()+'logs')
+    parser.add_argument('--ckpt_dir', type=str, default=base_path()+'checkpoints')
+    parser.add_argument('--ckpt_dir_1', type=str, default=base_path()+'checkpoints')
     parser.add_argument('--device', type=str, default='cuda' if torch.cuda.is_available() else 'cpu')
     parser.add_argument('--eval_from', type=str, default=None)
     parser.add_argument('--hide_progress', action='store_true')

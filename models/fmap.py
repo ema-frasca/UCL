@@ -3,7 +3,7 @@ from utils.buffer import Buffer
 from torch.nn import functional as F
 from models.utils.continual_model import ContinualModel
 from augmentations import get_aug
-from utils.spectral_analysis import calc_cos_dist, calc_euclid_dist, calc_ADL_knn, normalize_A, find_eigs
+from utils.spectral_analysis import calc_cos_dist, calc_euclid_dist, calc_ADL_knn, normalize_A, find_eigs, calc_ADL_heat
 
 class FMap(ContinualModel):
     NAME = 'fmap'
@@ -13,6 +13,11 @@ class FMap(ContinualModel):
         super(FMap, self).__init__(backbone, loss, args, len_train_loader, transform)
         self.buffer = Buffer(self.args.model.buffer_size, self.device)
         self.task = 0
+        self.name = self.NAME
+        if self.args.train.fm_cos_dist:
+            self.name += 'Cos'
+        if self.args.train.fm_heat:
+            self.name += 'Heat'
 
     def begin_task(self, train_loader):
         pass
@@ -22,7 +27,10 @@ class FMap(ContinualModel):
             dists = calc_cos_dist(features)
         else:
             dists = calc_euclid_dist(features)
-        A, D, L = calc_ADL_knn(dists, k=self.args.train.fm_knn_k, symmetric=True)
+        if self.args.train.fm_heat:
+            A, D, L = calc_ADL_heat(dists)
+        else:
+            A, D, L = calc_ADL_knn(dists, k=self.args.train.fm_knn_k, symmetric=True)
         L = torch.eye(A.shape[0]).to(A.device) - normalize_A(A, D)
         evals, evects = find_eigs(L, n_pairs=self.args.train.fm_dim)
         return evects, evals

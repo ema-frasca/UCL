@@ -9,16 +9,17 @@ from arguments import get_args
 from augmentations import get_aug
 from models import get_model
 from tools import AverageMeter, knn_monitor, Logger, file_exist_check
+from tools.knn_monitor import kmeans_monitor
 from datasets import get_dataset
 from datetime import datetime
-from utils import create_if_not_exists
+from utils import create_if_not_exists, random_id
 from utils.loggers import *
 from utils.metrics import mask_classes
 from utils.loggers import CsvLogger
 from datasets.utils.continual_dataset import ContinualDataset
 from models.utils.continual_model import ContinualModel
 from typing import Tuple
-from utils.wandbsc import WandbLogger
+from utils.wandbsc import WandbLogger, innested_vars
 
 
 def evaluate(model: ContinualModel, dataset: ContinualDataset, device, classifier=None) -> Tuple[list, list]:
@@ -120,13 +121,22 @@ def main(device, args):
                                         k=min(args.train.knn_k, len(memory_loader.dataset)))
             results.append(acc)
         mean_acc = np.mean(results)
-        wblog({'test': {'acc-mean': mean_acc, 'task': t,
-                        **{f'acc-{i}': acc for i, acc in enumerate(results)}}})
 
-        chech_dir = os.path.join(args.ckpt_dir, args.dataset.name)
-        create_if_not_exists(chech_dir)
-        model_path = os.path.join(chech_dir, f"{args.model.cl_model}_{t}.pth")
+        kmm, kmm_s, _ = kmeans_monitor(model.net.module.backbone, dataset.test_loaders, args.cl_default, (t+1) * dataset.N_CLASSES_PER_TASK)
+
+        wblog({'test': {'acc-mean': mean_acc, 'task': t,
+                        **{f'acc-{i}': acc for i, acc in enumerate(results)},
+                        'kmm-mean': kmm, 'kmm-std': kmm_s}})
+
         if args.save_checks:
+            chech_dir = os.path.join(args.ckpt_dir, args.dataset.name, f'{name}-{wblog.run_id}')
+            create_if_not_exists(chech_dir)
+            if t == 0:
+                save_dict = innested_vars(model.args)
+                filename = f'args.pyd'
+                with open(os.path.join(chech_dir, filename), 'w') as f:
+                    f.write(str(save_dict))
+            model_path = os.path.join(chech_dir, f"task_{t}.pth")
             torch.save(model.net.module.backbone.state_dict(), model_path)
             print(f"Backbone saved to {model_path}")
         # torch.save({
@@ -144,6 +154,7 @@ def main(device, args):
 
 if __name__ == "__main__":
     args = get_args()
+    # args.id = random_id()
     # if args.cl_model is not None:
     #     args.model.cl_model = args.cl_model
     main(device=args.device, args=args)

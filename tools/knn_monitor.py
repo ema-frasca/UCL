@@ -48,6 +48,48 @@ def knn_monitor(net, dataset, memory_data_loader, test_data_loader, device, cl_d
 
     return total_top1 / total_num * 100, total_top1_mask / total_num * 100
 
+def kmeans_monitor(net, test_data_loader, cl_default, num_clusters):
+    ''' Compute kmeans cluster entropy for *num_clusters* clusters w.r.t. ground truth labels
+    Args:
+        net: forward-ready model
+        test_data_loader: test data loader (if list, it will be merged)
+        cl_default: use features if True, otherwise use logits
+        num_clusters: number of clusters
+    Returns:
+        average entropy for the *num_clusters* clusters
+        std deviation for the *num_clusters* clusters
+        the resulting cluster assignments for each data point
+    '''
+    if isinstance(test_data_loader, list):
+        test_data_loader = torch.utils.data.DataLoader(torch.utils.data.ConcatDataset([j.dataset for j in test_data_loader]), batch_size=test_data_loader[0].batch_size, shuffle=False)
+    net.eval()
+    with torch.no_grad():
+        test_bar = tqdm(test_data_loader, desc='kNN', disable=True)
+        feats, targets = [], []
+        for data, target in test_bar:
+            data, target = data.cuda(non_blocking=True), target.cuda(non_blocking=True)
+            if cl_default:
+                feature = net(data, return_features=True)
+            else:
+                feature = net(data)
+            feature = F.normalize(feature, dim=1).cpu()
+            feats.append(feature.flatten(1))
+            targets.append(target)
+
+        from sklearn.cluster import KMeans
+        feats = torch.cat(feats, dim=0)
+        targets = torch.cat(targets, dim=0)
+        k = num_clusters
+        kmeans = torch.tensor(KMeans(n_clusters=k, random_state=0).fit_predict(feats.numpy()))
+        ents = []
+        for i in kmeans.unique():
+            _ , conf = targets[kmeans == i].unique(return_counts=True)
+            # compute entropy
+            probs = conf / conf.sum()
+            entropy = -probs.mul(probs.log()).sum()
+            ents.append(entropy.item())
+            # print(f'cluster {i} -> {entropy}')
+        return np.mean(ents), np.std(ents), kmeans
 
 # knn monitor as in InstDisc https://arxiv.org/abs/1805.01978
 # implementation follows http://github.com/zhirongw/lemniscate.pytorch and https://github.com/leftthomas/SimCLR

@@ -127,13 +127,22 @@ class BarlowTwins(nn.Module):
         self.predictor = prediction_MLP()
         self.criterion = BarlowTwinsLoss(device=device)
     
-    def forward(self, x1, x2):
+    def forward(self, x1, x2, full_out=False):
 
         f, h = self.encoder, self.predictor
         z1, z2 = f(x1), f(x2)
         p1, p2 = h(z1), h(z2)
         L = self.criterion(z1, z2)
-        return {'loss': L}
+        redict = {'loss': L}
+
+        if full_out:
+            redict['z1'] = z1
+            redict['z2'] = z2
+            redict['p1'] = p1
+            redict['p2'] = p2
+
+        return redict
+
 
 if __name__ == "__main__":
     model = SimSiam()
