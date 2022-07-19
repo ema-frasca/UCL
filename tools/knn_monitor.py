@@ -49,7 +49,7 @@ def knn_monitor(net, dataset, memory_data_loader, test_data_loader, device, cl_d
     return total_top1 / total_num * 100, total_top1_mask / total_num * 100
 
 def kmeans_monitor(net, test_data_loader, cl_default, num_clusters):
-    ''' Compute kmeans cluster entropy for *num_clusters* clusters w.r.t. ground truth labels
+    ''' Compute kmeans cluster entropy for *num_clusters* clusters w.r.t. ground truth labels 
     Args:
         net: forward-ready model
         test_data_loader: test data loader (if list, it will be merged)
