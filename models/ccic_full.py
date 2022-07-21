@@ -42,12 +42,14 @@ class CCICFull(ContinualModel):
 
             if self.task > 0:
                 all_z1 = torch.cat([buf_dict['z1'], data_dict['z1']], dim=0)
-                all_z2 = torch.cat([buf_dict['z2'], data_dict['z2']], dim=0)
+                # all_z2 = torch.cat([buf_dict['z2'], data_dict['z2']], dim=0)
                 all_tl = torch.cat([tl, torch.ones(len(data_dict['z1'])).to(self.device) * self.task], dim=0).long()
                 
-                all_zs = torch.cat([all_z1, all_z2], dim=0)
+                # all_zs = torch.cat([all_z1, all_z2], dim=0)
+                all_zs = all_z1
                 cdists = -F.cosine_similarity(all_zs.unsqueeze(1), all_zs.unsqueeze(0), dim=-1)
-                tgt = (all_tl.repeat(2).unsqueeze(1) == all_tl.repeat(2).unsqueeze(0)).float() * 2 - 1 # 1 if same task, -1 if different task
+                # tgt = (all_tl.repeat(2).unsqueeze(1) == all_tl.repeat(2).unsqueeze(0)).float() * 2 - 1 # 1 if same task, -1 if different task
+                tgt = (all_tl.unsqueeze(1) == all_tl.unsqueeze(0)).float() * 2 - 1
                 dist = cdists * tgt
                 
                 data_dict['ccic'] = dist.mean() * self.args.train.alpha

@@ -148,8 +148,8 @@ def main(device, args):
         #   f.write(f'{model_path}')
 
 
-    if args.eval is not False and args.cl_default is False:
-        args.eval_from = model_path
+    # if args.eval is not False and args.cl_default is False:
+    #     args.eval_from = model_path
 
 
 if __name__ == "__main__":
